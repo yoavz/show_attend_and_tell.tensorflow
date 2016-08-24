@@ -181,9 +181,9 @@ class Caption_Generator():
         return tf.reshape(pool5, [-1, 128, 512])
 
     def build_model(self):
-        images = tf.placeholder("float32", [self.batch_size, self.img_shape[0], self.img_shape[1]])
-        sentence = tf.placeholder("int32", [self.batch_size, self.n_lstm_steps])
-        mask = tf.placeholder("float32", [self.batch_size, self.n_lstm_steps])
+        images = tf.placeholder("float32", [self.batch_size, self.img_shape[0], self.img_shape[1]], name="images")
+        sentence = tf.placeholder("int32", [self.batch_size, self.n_lstm_steps], name="sentences")
+        mask = tf.placeholder("float32", [self.batch_size, self.n_lstm_steps], name="mask")
 
         # (yoavz): add conv layers to get the image contexts
         context = self.build_conv_net(images)
@@ -251,7 +251,7 @@ class Caption_Generator():
             loss = loss + current_loss
 
         loss = loss / tf.reduce_sum(mask)
-        return loss, context, sentence, mask
+        return loss, images, sentence, mask
 
     def build_generator(self, maxlen):
         images = tf.placeholder("float32", [1, self.img_shape[0], self.img_shape[1]])
@@ -307,7 +307,7 @@ class Caption_Generator():
             generated_words.append(max_prob_word)
             logit_list.append(logit_words)
 
-        return context, generated_words, logit_list, alpha_list
+        return images, generated_words, logit_list, alpha_list
 
 
 def preProBuildWordVocab(sentence_iterator, word_count_threshold=30): # borrowed this function from NeuralTalk
@@ -356,6 +356,7 @@ model_path = './model/'
 #############################
 
 def train(pretrained_model_path=pretrained_model_path): # 전에 학습하던게 있으면 초기값 설정.
+    # TODO(yoavz): rewrite this function
     annotation_data = pd.read_pickle(annotation_path)
     captions = annotation_data['caption'].values
     wordtoix, ixtoword, bias_init_vector = preProBuildWordVocab(captions)
@@ -455,7 +456,6 @@ def test(test_feat='./guitar_player.npy', model_path='./model/model-6', maxlen=2
 #    ipdb.set_trace()
 
 if __name__ == "__main__":
-    print "hello world!"
 
     sess = tf.InteractiveSession()
 
