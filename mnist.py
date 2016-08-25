@@ -56,6 +56,7 @@ class MNISTCaptionGenerator(Caption_Generator):
 
 ##### Parameters ######
 n_epochs=1000
+save_every=5 # save every 5 epochs
 batch_size=100
 # technically we don't need a word embedding for MNIST labels,
 # but use one anyways to test the model
@@ -63,15 +64,15 @@ dim_embed=10
 dim_ctx=128
 dim_hidden=256
 img_shape=[28,280]
-model_path = 'models/mnist'
-learning_rate=0.001
+model_path = 'models'
+learning_rate=0.01
 #############################
 
 def horizontally_stack(a, axis):
     return np.squeeze(np.concatenate(np.split(a, 10), axis=axis))
 
 def train():
-    mnist_data = input_data.read_data_sets("MNIST_data/", one_hot=True)
+    mnist_data = input_data.read_data_sets("data/MNIST/", one_hot=True)
     num_train = mnist_data.train.images.shape[0]
     mnist_train_images = np.reshape(mnist_data.train.images, (num_train, 28, 28))
     mnist_train_labels = np.reshape(mnist_data.train.labels, (num_train, 10))
@@ -80,7 +81,8 @@ def train():
 
     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_train_images, num_train/10, axis=0)])
 
-    # TODO: verify mnist_train_labels were shaped correctly?
+    # skimage.io.imsave("train_image.png", stacked[8, :, :])
+    # print mnist_train_labels[8, :]
 
     sess = tf.InteractiveSession()
 
@@ -95,7 +97,7 @@ def train():
         bias_init_vector=None)
 
     loss, images, sentence, mask = caption_generator.build_model()
-    saver = tf.train.Saver(max_to_keep=50)
+    saver = tf.train.Saver(max_to_keep=100)
 
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
     tf.initialize_all_variables().run()
@@ -117,10 +119,12 @@ def train():
             })
         
             print "Current Cost: {} (batch {}/{})".format(loss_value, batch_num, batches_per_epoch)
-            saver.save(sess, os.path.join(model_path, 'model'), global_step=epoch*batches_per_epoch + batch_num)
 
-def test():
-    mnist_data = input_data.read_data_sets("MNIST_data/", one_hot=True)
+        if epoch % save_every == 0:
+            saver.save(sess, os.path.join(model_path, 'mnist'), global_step=epoch/save_every)
+
+def test(model_name="mnist-10"):
+    mnist_data = input_data.read_data_sets("data/MNIST", one_hot=True)
     num_test = mnist_data.test.images.shape[0]
     mnist_test_images = np.reshape(mnist_data.test.images, (num_test, 28, 28))
     mnist_test_labels = np.reshape(mnist_data.test.labels, (num_test, 10))
@@ -146,11 +150,11 @@ def test():
 
     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=10)
     saver = tf.train.Saver()
-    saver.restore(sess, os.path.join(model_path, "model-24"))
+    saver.restore(sess, os.path.join(model_path, model_name))
 
     generated_words = sess.run(generated_words, feed_dict = { images: np.expand_dims(stacked[0, :, :], axis=0) })
     print generated_words
 
 if __name__ == "__main__":
-    # train()
-    test()
+    train()
+    #test()
