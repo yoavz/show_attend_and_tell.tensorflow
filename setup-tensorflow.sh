@@ -39,7 +39,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_ROOT/lib64
 ' >> ~/.bashrc
 
 # install pip
-sudo apt-get install python-pip python-dev
+sudo apt-get -y install python-pip python-dev
 
 # install tensorflow
 export TF_BINARY_URL=https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow-0.10.0rc0-cp27-none-linux_x86_64.whl
