@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import cPickle
 
-from tensorflow.models.rnn import rnn_cell
 import tensorflow.python.platform
 from keras.preprocessing import sequence
 
