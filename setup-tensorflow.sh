@@ -36,6 +36,7 @@ echo 'export CUDA_HOME=/usr/local/cuda
 export CUDA_ROOT=/usr/local/cuda
 export PATH=$PATH:$CUDA_ROOT/bin:$HOME/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_ROOT/lib64
+export KERAS_BACKEND=tensorflow
 ' >> ~/.bashrc
 
 # install pip
@@ -57,10 +58,10 @@ sudo pip install --upgrade $TF_BINARY_URL
 # /mnt/bin/anaconda3/bin/pip install $TF_BINARY_URL
 
 # install monitoring programs
-sudo wget https://git.io/gpustat -O /usr/local/bin/gpustat
-sudo chmod +x /usr/local/bin/gpustat
-sudo nvidia-smi daemon
-sudo apt-get -y install htop
+# sudo wget https://git.io/gpustat -O /usr/local/bin/gpustat
+# sudo chmod +x /usr/local/bin/gpustat
+# sudo nvidia-smi daemon
+# sudo apt-get -y install htop
 
 # reload .bashrc
 exec bash

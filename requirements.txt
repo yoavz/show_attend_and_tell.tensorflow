@@ -1,6 +1,7 @@
 numpy
 pandas
-cPickle
+ipdb
+h5py
 
 scikit-image
 tensorflow
