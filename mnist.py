@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import skimage
 import skimage.io
@@ -156,5 +157,7 @@ def test(model_name="mnist-10"):
     print generated_words
 
 if __name__ == "__main__":
-    train()
-    #test()
+    if len(sys.argv) > 1:
+        test(sys.argv[1])
+    else:
+        train()
