@@ -136,9 +136,9 @@ def test(model_name="mnist-10"):
     mnist_test_images = np.reshape(mnist_data.test.images, (num_test, 28, 28))
     mnist_test_labels = np.reshape(mnist_data.test.labels, (num_test, 10))
     mnist_test_labels = np.nonzero(mnist_test_labels)[1] # one hot to integer
-    mnist_test_labels = np.reshape(mnist_test_labels, (num_test/10, 10))
+    mnist_test_labels = np.reshape(mnist_test_labels, (num_test/CONCAT_LENGTH, CONCAT_LENGTH))
 
-    stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_test_images, num_test/10, axis=0)])
+    stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_test_images, num_test/CONCAT_LENGTH, axis=0)])
 
     skimage.io.imsave("test_image.png", stacked[0, :, :])
     print "Test image saved to test_image.png"
@@ -150,12 +150,12 @@ def test(model_name="mnist-10"):
         dim_embed=dim_embed,
         dim_ctx=dim_ctx,
         dim_hidden=dim_hidden,
-        n_lstm_steps=10, # 10 images concatenated together
+        n_lstm_steps=CONCAT_LENGTH
         batch_size=batch_size,
         img_shape=img_shape,
         bias_init_vector=None)
 
-    images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=10)
+    images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
     saver = tf.train.Saver()
     saver.restore(sess, os.path.join(model_path, model_name))
 
