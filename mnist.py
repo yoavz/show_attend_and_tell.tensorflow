@@ -9,13 +9,16 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 from model_tensorflow import Caption_Generator
 
+CONCAT_LENGTH = 1
+
 class MNISTCaptionGenerator(Caption_Generator):
 
     def _init_conv_net(self):
         """
         Defines the parameters of convolution to go from
         image -> context vectors. Image size starts at
-        28 x 280. Context vector is 490 x 128
+        28 x (28 * CONCAT_LENGTH). 
+        Context vector is (49 * CONCAT_LENGTH) x 128
         """
 
         with tf.variable_scope("conv1"): 
@@ -44,33 +47,33 @@ class MNISTCaptionGenerator(Caption_Generator):
         pool1 = self.max_pool(conv1_2)
 
         # 14 x 140 
-        assert pool1.get_shape().as_list()[1:] == [14, 140, 64]
+        assert pool1.get_shape().as_list()[1:] == [14, 14*CONCAT_LENGTH, 64]
 
         conv2_1 = self.conv_layer(pool1, self.conv2_W_1, self.conv2_b_1)
         conv2_2 = self.conv_layer(conv2_1, self.conv2_W_2, self.conv2_b_2)
         pool2 = self.max_pool(conv2_2)
 
         # 7 x 70
-        assert pool2.get_shape().as_list()[1:] == [7, 70, 128]
+        assert pool2.get_shape().as_list()[1:] == [7, 7*CONCAT_LENGTH, 128]
 
-        return tf.reshape(pool2, [-1, 490, 128])
+        return tf.reshape(pool2, [-1, 49*CONCAT_LENGTH, 128])
 
 ##### Parameters ######
 n_epochs=1000
 save_every=5 # save every 5 epochs
-batch_size=100
+batch_size=1000/CONCAT_LENGTH
 # technically we don't need a word embedding for MNIST labels,
 # but use one anyways to test the model
 dim_embed=10
 dim_ctx=128
 dim_hidden=256
-img_shape=[28,280]
+img_shape=[28,28*CONCAT_LENGTH]
 model_path = 'models'
-learning_rate=0.01
+learning_rate=0.001
 #############################
 
 def horizontally_stack(a, axis):
-    return np.squeeze(np.concatenate(np.split(a, 10), axis=axis))
+    return np.squeeze(np.concatenate(np.split(a, CONCAT_LENGTH), axis=axis))
 
 def train():
     mnist_data = input_data.read_data_sets("data/MNIST/", one_hot=True)
@@ -78,9 +81,9 @@ def train():
     mnist_train_images = np.reshape(mnist_data.train.images, (num_train, 28, 28))
     mnist_train_labels = np.reshape(mnist_data.train.labels, (num_train, 10))
     mnist_train_labels = np.nonzero(mnist_train_labels)[1] # one hot to integer
-    mnist_train_labels = np.reshape(mnist_train_labels, (num_train/10, 10))
+    mnist_train_labels = np.reshape(mnist_train_labels, (num_train/CONCAT_LENGTH, CONCAT_LENGTH))
 
-    stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_train_images, num_train/10, axis=0)])
+    stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_train_images, num_train/CONCAT_LENGTH, axis=0)])
 
     # skimage.io.imsave("train_image.png", stacked[8, :, :])
     # print mnist_train_labels[8, :]
@@ -92,7 +95,7 @@ def train():
         dim_embed=dim_embed,
         dim_ctx=dim_ctx,
         dim_hidden=dim_hidden,
-        n_lstm_steps=10, # 10 images concatenated together
+        n_lstm_steps=CONCAT_LENGTH, 
         batch_size=batch_size,
         img_shape=img_shape,
         bias_init_vector=None)
@@ -105,6 +108,8 @@ def train():
 
     batches_per_epoch = mnist_train_labels.shape[0]/batch_size
 
+    print "Training on {} images concatenated together horizontally".format(CONCAT_LENGTH)
+    print "{} total train images".format(mnist_train_images.shape[0])
     for epoch in range(n_epochs):
         print "Epoch: {}".format(epoch)
         for batch_num in range(batches_per_epoch):
@@ -125,6 +130,7 @@ def train():
             saver.save(sess, os.path.join(model_path, 'mnist'), global_step=epoch/save_every)
 
 def test(model_name="mnist-10"):
+    # TODO(yoavz): fix with CONCAT_LENGTH
     mnist_data = input_data.read_data_sets("data/MNIST", one_hot=True)
     num_test = mnist_data.test.images.shape[0]
     mnist_test_images = np.reshape(mnist_data.test.images, (num_test, 28, 28))
