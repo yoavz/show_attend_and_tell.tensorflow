@@ -4,6 +4,7 @@ import numpy as np
 import skimage
 import skimage.io
 
+import tqdm
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
@@ -129,8 +130,7 @@ def train():
         if epoch % save_every == 0:
             saver.save(sess, os.path.join(model_path, 'mnist'), global_step=epoch/save_every)
 
-def test(model_name="mnist-10"):
-    # TODO(yoavz): fix with CONCAT_LENGTH
+def sample(model_name="mnist-10"):
     mnist_data = input_data.read_data_sets("data/MNIST", one_hot=True)
     num_test = mnist_data.test.images.shape[0]
     mnist_test_images = np.reshape(mnist_data.test.images, (num_test, 28, 28))
@@ -140,7 +140,8 @@ def test(model_name="mnist-10"):
 
     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_test_images, num_test/CONCAT_LENGTH, axis=0)])
 
-    skimage.io.imsave("test_image.png", stacked[0, :, :])
+    idx = np.random.randint(0, high=mnist_test_images.shape[0]-1)
+    skimage.io.imsave("test_image.png", stacked[idx, :, :])
     print "Test image saved to test_image.png"
 
     sess = tf.InteractiveSession()
@@ -159,8 +160,47 @@ def test(model_name="mnist-10"):
     saver = tf.train.Saver()
     saver.restore(sess, os.path.join(model_path, model_name))
 
-    generated_words = sess.run(generated_words, feed_dict = { images: np.expand_dims(stacked[0, :, :], axis=0) })
+    generated_words = sess.run(generated_words, feed_dict = { images: np.expand_dims(stacked[idx, :, :], axis=0) })
     print generated_words
+
+def test(model_name="mnist-10", test_limit=1000):
+    mnist_data = input_data.read_data_sets("data/MNIST", one_hot=True)
+    num_test = mnist_data.test.images.shape[0]
+    mnist_test_images = np.reshape(mnist_data.test.images, (num_test, 28, 28))
+    mnist_test_labels = np.reshape(mnist_data.test.labels, (num_test, 10))
+    mnist_test_labels = np.nonzero(mnist_test_labels)[1] # one hot to integer
+    mnist_test_labels = np.reshape(mnist_test_labels, (num_test/CONCAT_LENGTH, CONCAT_LENGTH))
+
+    stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_test_images, num_test/CONCAT_LENGTH, axis=0)])
+
+    sess = tf.InteractiveSession()
+
+    caption_generator = MNISTCaptionGenerator(
+        n_words=10, # 10 possible words
+        dim_embed=dim_embed,
+        dim_ctx=dim_ctx,
+        dim_hidden=dim_hidden,
+        n_lstm_steps=CONCAT_LENGTH,
+        batch_size=batch_size,
+        img_shape=img_shape,
+        bias_init_vector=None)
+
+    images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
+    saver = tf.train.Saver()
+    saver.restore(sess, os.path.join(model_path, model_name))
+
+    num_test = min(test_limit, stacked.shape[0])
+    correct = 0
+
+    idx_list = np.arange(stacked.shape[0])
+    np.random.shuffle(idx_list)
+    idx_list = idx_list[:num_test] # limit if needed
+
+    for i in tqdm.tqdm(idx_list):
+        generated = sess.run(generated_words, feed_dict = { images: np.expand_dims(stacked[i, :, :], axis=0) })
+        correct += 1 if generated[0] == mnist_test_labels[i, :] else 0
+
+    print "Accuracy: {} ({}/{})".format(float(correct)/float(num_test), correct, num_test) 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
