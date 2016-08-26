@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # install tensorflow
-sh ./setup-tensorflow.sh
+./setup-tensorflow.sh
 
 # install matplotlib requirements
-sudo apt-get install libpng-dev libfreetype6-dev libxft-dev
+sudo apt-get install -y libpng-dev libfreetype6-dev libxft-dev
 
 # update pip
 sudo pip install -U pip
