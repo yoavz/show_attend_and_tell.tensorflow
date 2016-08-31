@@ -73,7 +73,7 @@ class Caption_Generator():
             self.conv5_W_3 = self.init_custom_weight([3, 3, 512, 512], name="W_3")
             self.conv5_b_3 = self.init_bias(512, name="b_3")
 
-    def __init__(self, n_words, dim_embed, dim_ctx, dim_hidden, n_lstm_steps, batch_size=200, img_shape=[128,1024], bias_init_vector=None):
+    def __init__(self, n_words, dim_embed, dim_ctx, dim_hidden, n_lstm_steps, batch_size=200, img_shape=[128,1024], bias_init_vector=None, dropout=0.5):
         self.n_words = n_words
         self.dim_embed = dim_embed
         self.dim_ctx = dim_ctx
@@ -81,6 +81,7 @@ class Caption_Generator():
         self.img_shape = img_shape 
         self.n_lstm_steps = n_lstm_steps
         self.batch_size = batch_size
+        self.dropout = dropout
 
         self._init_conv_net()
 
@@ -240,8 +241,7 @@ class Caption_Generator():
 
             logits = tf.matmul(h, self.decode_lstm_W) + self.decode_lstm_b
             logits = tf.nn.relu(logits)
-            # TODO: add dropout back in ?
-            logits = tf.nn.dropout(logits, 1.0)
+            logits = tf.nn.dropout(logits, dropout)
 
             logit_words = tf.matmul(logits, self.decode_word_W) + self.decode_word_b
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logit_words, onehot_labels)

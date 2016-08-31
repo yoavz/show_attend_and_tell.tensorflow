@@ -10,7 +10,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 from model_tensorflow import Caption_Generator
 
-CONCAT_LENGTH = 2
+CONCAT_LENGTH = 5
 
 class MNISTCaptionGenerator(Caption_Generator):
 
@@ -96,7 +96,8 @@ def train():
         n_lstm_steps=CONCAT_LENGTH, 
         batch_size=batch_size,
         img_shape=img_shape,
-        bias_init_vector=None)
+        bias_init_vector=None,
+        dropout=1.0)
 
     loss, images, sentence, mask = caption_generator.build_model()
     saver = tf.train.Saver(max_to_keep=100)
@@ -142,7 +143,7 @@ def sample(model_name="mnist-10"):
 
     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_test_images, num_test/CONCAT_LENGTH, axis=0)])
 
-    idx = np.random.randint(0, high=mnist_test_images.shape[0]-1)
+    idx = np.random.randint(0, high=stacked.shape[0]-1)
     skimage.io.imsave("test_image.png", stacked[idx, :, :])
     print "Test image saved to test_image.png"
 
@@ -156,7 +157,8 @@ def sample(model_name="mnist-10"):
         n_lstm_steps=CONCAT_LENGTH,
         batch_size=batch_size,
         img_shape=img_shape,
-        bias_init_vector=None)
+        bias_init_vector=None,
+        dropout=1.0)
 
     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
     saver = tf.train.Saver()
@@ -185,7 +187,8 @@ def test(model_name="mnist-10", test_limit=1000):
         n_lstm_steps=CONCAT_LENGTH,
         batch_size=batch_size,
         img_shape=img_shape,
-        bias_init_vector=None)
+        bias_init_vector=None,
+        dropout=1.0)
 
     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
     saver = tf.train.Saver()
@@ -193,6 +196,7 @@ def test(model_name="mnist-10", test_limit=1000):
 
     num_test = min(test_limit, stacked.shape[0])
     correct = 0
+    total = 0
 
     idx_list = np.arange(stacked.shape[0])
     np.random.shuffle(idx_list)
@@ -200,12 +204,17 @@ def test(model_name="mnist-10", test_limit=1000):
 
     for i in tqdm.tqdm(idx_list):
         generated = sess.run(generated_words, feed_dict = { images: np.expand_dims(stacked[i, :, :], axis=0) })
-        correct += 1 if generated[0] == mnist_test_labels[i, :] else 0
+        for j in range(len(generated)):
+            # print generated[j][0], mnist_test_labels[i, j]
+            total += 1
+            correct += 1 if generated[j][0] == mnist_test_labels[i, j] else 0
 
-    print "Accuracy: {} ({}/{})".format(float(correct)/float(num_test), correct, num_test) 
+    # print correct
+    print "Accuracy: {} ({}/{})".format(float(correct)/float(total), correct, total) 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        test(sys.argv[1])
+        sample(sys.argv[1])
+        # test(sys.argv[1])
     else:
         train()
