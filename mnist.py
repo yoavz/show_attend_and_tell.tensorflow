@@ -10,7 +10,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 from model_tensorflow import Caption_Generator
 
-CONCAT_LENGTH = 1
+CONCAT_LENGTH = 2
 
 class MNISTCaptionGenerator(Caption_Generator):
 
@@ -86,9 +86,6 @@ def train():
 
     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_train_images, num_train/CONCAT_LENGTH, axis=0)])
 
-    # skimage.io.imsave("train_image.png", stacked[8, :, :])
-    # print mnist_train_labels[8, :]
-
     sess = tf.InteractiveSession()
 
     caption_generator = MNISTCaptionGenerator(
@@ -119,9 +116,14 @@ def train():
             current_sentence = mnist_train_labels[batch_num*batch_size:(batch_num+1)*batch_size, :]
             current_mask = np.ones((batch_size, mnist_train_labels.shape[1]))
 
+            # skimage.io.imsave("current_image.png", current_images[0, :, :])
+            # print current_sentence[0, :]
+
             _, loss_value = sess.run([train_op, loss], feed_dict={
                 images: current_images,
                 sentence: current_sentence,
+                # images: stacked[:batch_size, :, :],
+                # sentence: mnist_train_labels[:batch_size, :],
                 mask: current_mask
             })
         

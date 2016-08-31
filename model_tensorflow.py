@@ -240,7 +240,8 @@ class Caption_Generator():
 
             logits = tf.matmul(h, self.decode_lstm_W) + self.decode_lstm_b
             logits = tf.nn.relu(logits)
-            logits = tf.nn.dropout(logits, 0.5)
+            # TODO: add dropout back in ?
+            logits = tf.nn.dropout(logits, 1.0)
 
             logit_words = tf.matmul(logits, self.decode_word_W) + self.decode_word_b
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logit_words, onehot_labels)
