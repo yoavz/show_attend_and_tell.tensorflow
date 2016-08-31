@@ -2,6 +2,7 @@ numpy
 pandas
 ipdb
 h5py
+tqdm
 
 scikit-image
 tensorflow
