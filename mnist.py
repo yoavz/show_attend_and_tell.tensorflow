@@ -11,7 +11,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 from model_tensorflow import Caption_Generator
 
-CONCAT_LENGTH = 5
+CONCAT_LENGTH = 1
 
 class MNISTCaptionGenerator(Caption_Generator):
 
@@ -64,9 +64,6 @@ class MNISTCaptionGenerator(Caption_Generator):
 n_epochs=1000
 save_every=5 # save every 5 epochs
 batch_size=1000/CONCAT_LENGTH
-# technically we don't need a word embedding for MNIST labels,
-# but use one anyways to test the model
-dim_embed=10
 dim_ctx=128
 dim_hidden=256
 img_shape=[28,28*CONCAT_LENGTH]
@@ -85,21 +82,17 @@ def train():
     mnist_train_labels = np.nonzero(mnist_train_labels)[1] # one hot to integer
     mnist_train_labels = np.reshape(mnist_train_labels, (num_train/CONCAT_LENGTH, CONCAT_LENGTH))
 
-    print mnist_train_images[0, :, :]
-
     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_train_images, num_train/CONCAT_LENGTH, axis=0)])
 
     sess = tf.InteractiveSession()
 
     caption_generator = MNISTCaptionGenerator(
         n_words=10, # 10 possible words
-        dim_embed=dim_embed,
         dim_ctx=dim_ctx,
         dim_hidden=dim_hidden,
         n_lstm_steps=CONCAT_LENGTH, 
         batch_size=batch_size,
         img_shape=img_shape,
-        bias_init_vector=None,
         dropout=1.0)
 
     loss, images, sentence, mask = caption_generator.build_model()
@@ -154,13 +147,11 @@ def sample(model_name="mnist-10"):
 
     caption_generator = MNISTCaptionGenerator(
         n_words=10, # 10 possible words
-        dim_embed=dim_embed,
         dim_ctx=dim_ctx,
         dim_hidden=dim_hidden,
         n_lstm_steps=CONCAT_LENGTH,
         batch_size=batch_size,
         img_shape=img_shape,
-        bias_init_vector=None,
         dropout=1.0)
 
     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
@@ -184,13 +175,11 @@ def test(model_name="mnist-10", test_limit=1000):
 
     caption_generator = MNISTCaptionGenerator(
         n_words=10, # 10 possible words
-        dim_embed=dim_embed,
         dim_ctx=dim_ctx,
         dim_hidden=dim_hidden,
         n_lstm_steps=CONCAT_LENGTH,
         batch_size=batch_size,
         img_shape=img_shape,
-        bias_init_vector=None,
         dropout=1.0)
 
     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)

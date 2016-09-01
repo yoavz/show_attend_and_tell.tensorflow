@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import numpy as np
 import skimage
 import skimage.io
@@ -106,14 +107,13 @@ class IM2LATEXCaptionGenerator(Caption_Generator):
         # 4 x 32 (x 512 filters)
         assert pool5.get_shape().as_list()[1:] == [4, 32, 512]
 
-        return tf.reshape(pool5, [-1, 128, 1024])
+        return tf.reshape(pool5, [-1, 128, 512])
 
 ##### Parameters ######
 n_epochs=1000
 save_every=5 # save every 5 epochs
-batch_size=100
-dim_embed= # TODO(yoavz): remove this from model_tensorflow
-dim_ctx=128
+batch_size=10 # TODO(yoavz): change once testing is done
+dim_ctx=512
 dim_hidden=256
 img_shape=[128, 1024]
 max_lstm_steps=81 # 80 length + 1
@@ -175,80 +175,72 @@ def load_formulas():
         idx_to_char[idx] = c
         idx += 1
 
-    # sequences = np.zeros((len(formulas), max_lstm_steps))
-    # for i, f in enumerate(formulas):
-    #     sequences[i, :len(f)] = [char_to_idx[c] for c in f]
-
     return formulas, char_to_idx, idx_to_char
-
-if __name__ == "__main__":
-
-
-    # if len(sys.argv) > 1:
-    #     # sample(sys.argv[1])
-    #     test(sys.argv[1])
-    # else:
-    #     train()
 
 def train():
 
-    images, length_to_idxs = load_images()
+    images_data, length_to_idxs = load_images()
     formulas, char_to_idx, idx_to_char = load_formulas()
+    n_words = len(char_to_idx)
 
     sess = tf.InteractiveSession()
 
     caption_generator = IM2LATEXCaptionGenerator(
-        n_words=, 
-        dim_embed=dim_embed,
+        n_words=n_words, 
         dim_ctx=dim_ctx,
         dim_hidden=dim_hidden,
-        n_lstm_steps=CONCAT_LENGTH, 
+        n_lstm_steps=max_lstm_steps, 
         batch_size=batch_size,
         img_shape=img_shape,
-        bias_init_vector=None,
         dropout=0.5)
 
-#     loss, images, sentence, mask = caption_generator.build_model()
-#     saver = tf.train.Saver(max_to_keep=100)
-#
-#     train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
-#     tf.initialize_all_variables().run()
-#
-#     batches_per_epoch = mnist_train_labels.shape[0]/batch_size
-#
-#     print "Training on {} images concatenated together horizontally".format(CONCAT_LENGTH)
-#     print "{} total train images".format(mnist_train_images.shape[0])
-#     for epoch in range(n_epochs):
-#         print "Epoch: {}".format(epoch)
-#         for batch_num in range(batches_per_epoch):
-#
-#             current_images = stacked[batch_num*batch_size:(batch_num+1)*batch_size, :, :]
-#             current_sentence = mnist_train_labels[batch_num*batch_size:(batch_num+1)*batch_size, :]
-#             current_mask = np.ones((batch_size, mnist_train_labels.shape[1]))
-#
-#             # skimage.io.imsave("current_image.png", current_images[0, :, :])
-#             # print current_sentence[0, :]
-#
-#             _, loss_value = sess.run([train_op, loss], feed_dict={
-#                 images: current_images,
-#                 sentence: current_sentence,
-#                 # images: stacked[:batch_size, :, :],
-#                 # sentence: mnist_train_labels[:batch_size, :],
-#                 mask: current_mask
-#             })
-#         
-#             print "Current Cost: {} (batch {}/{})".format(loss_value, batch_num, batches_per_epoch)
-#
-#         if epoch % save_every == 0:
-#             saver.save(sess, os.path.join(model_path, 'mnist'), global_step=epoch/save_every)
-#
+    loss, images, sentence, mask = caption_generator.build_model()
+    saver = tf.train.Saver(max_to_keep=100)
+
+    train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+    tf.initialize_all_variables().run()
+
+    # WARNING: ignores the final remainder of batches for simplicity
+    batches_per_epoch = images_data.shape[0] / batch_size
+    print "{} total train images".format(images_data.shape[0])
+    
+    for epoch in range(n_epochs):
+
+        print "Epoch: {}".format(epoch)
+
+        for batch_num in range(batches_per_epoch):
+
+            current_images = images_data[batch_num*batch_size:(batch_num+1)*batch_size, :, :]
+            current_formulas = formulas[batch_num*batch_size:(batch_num+1)*batch_size]
+            
+            current_labels = np.zeros((batch_size, max_lstm_steps), dtype=np.int32)
+            current_mask = np.zeros((batch_size, max_lstm_steps), dtype=np.int32)
+            for i, f in enumerate(current_formulas):
+                # add 0 at the end for the terminating character
+                current_labels[i, :len(f)+1] = [ char_to_idx[c] for c in f ] + [0]
+                # set mask of the example to ones
+                current_mask[i, :len(f)+1] = np.ones(len(f)+1, dtype=np.int32)
+            
+            # print current_images.shape
+            # print current_labels.shape
+            # print current_mask.shape
+            #
+            # print current_labels[0, :]
+            # print current_mask[0, :]
+            # loss_value = 0
+
+            _, loss_value = sess.run([train_op, loss], feed_dict={
+                images: current_images,
+                sentence: current_labels,
+                mask: current_mask
+            })
+
+            print "Current Cost: {} (batch {}/{})".format(loss_value, batch_num, batches_per_epoch)
+
+        if epoch % save_every == 0:
+            saver.save(sess, os.path.join(model_path, 'im2latex'), global_step=epoch/save_every)
+
 # def sample(model_name="mnist-10"):
-#     mnist_data = input_data.read_data_sets("data/MNIST", one_hot=True)
-#     num_test = mnist_data.test.images.shape[0]
-#     mnist_test_images = np.reshape(mnist_data.test.images, (num_test, 28, 28))
-#     mnist_test_labels = np.reshape(mnist_data.test.labels, (num_test, 10))
-#     mnist_test_labels = np.nonzero(mnist_test_labels)[1] # one hot to integer
-#     mnist_test_labels = np.reshape(mnist_test_labels, (num_test/CONCAT_LENGTH, CONCAT_LENGTH))
 #
 #     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_test_images, num_test/CONCAT_LENGTH, axis=0)])
 #
@@ -260,13 +252,11 @@ def train():
 #
 #     caption_generator = IM2LATEXCaptionGenerator(
 #         n_words=10, # 10 possible words
-#         dim_embed=dim_embed,
 #         dim_ctx=dim_ctx,
 #         dim_hidden=dim_hidden,
 #         n_lstm_steps=CONCAT_LENGTH,
 #         batch_size=batch_size,
 #         img_shape=img_shape,
-#         bias_init_vector=None,
 #         dropout=1.0)
 #
 #     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
@@ -290,13 +280,11 @@ def train():
 #
 #     caption_generator = IM2LATEXCaptionGenerator(
 #         n_words=10, # 10 possible words
-#         dim_embed=dim_embed,
 #         dim_ctx=dim_ctx,
 #         dim_hidden=dim_hidden,
 #         n_lstm_steps=CONCAT_LENGTH,
 #         batch_size=batch_size,
 #         img_shape=img_shape,
-#         bias_init_vector=None,
 #         dropout=1.0)
 #
 #     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
@@ -320,3 +308,11 @@ def train():
 #     for j in range(CONCAT_LENGTH):
 #         print "Precision-{}: {} ({}/{})".format(j, 
 #             float(correct[j])/float(total[j]), correct[j], total[j]) 
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        # sample(sys.argv[1])
+        test(sys.argv[1])
+    else:
+        train()
+

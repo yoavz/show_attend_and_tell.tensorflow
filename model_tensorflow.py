@@ -21,22 +21,21 @@ class Caption_Generator():
     def init_bias(self, dim_out, name=None):
         return tf.Variable(tf.zeros([dim_out]), name=name)
 
-    def conv2d(x, W):
+    def conv2d(self, x, W):
       return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
-    def max_pool_2x2(x):
+    def max_pool_2x2(self, x):
       return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-    def max_pool_4x4(x):
+    def max_pool_4x4(self, x):
       return tf.nn.max_pool(x, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding='SAME')
 
     def _init_conv_net(self):
         """ Abstract function """ 
         pass
 
-    def __init__(self, n_words, dim_embed, dim_ctx, dim_hidden, n_lstm_steps, batch_size=200, img_shape=[128,1024], bias_init_vector=None, dropout=0.5):
+    def __init__(self, n_words, dim_ctx, dim_hidden, n_lstm_steps, batch_size=200, img_shape=[128,1024], dropout=0.5):
         self.n_words = n_words
-        self.dim_embed = dim_embed
         self.dim_ctx = dim_ctx
         self.dim_hidden = dim_hidden
         self.img_shape = img_shape 
@@ -46,16 +45,13 @@ class Caption_Generator():
 
         self._init_conv_net()
 
-        with tf.device("/cpu:0"):
-            self.Wemb = tf.Variable(tf.random_uniform([n_words, dim_embed], -1.0, 1.0), name='Wemb')
-
         self.init_hidden_W = self.init_weight(dim_ctx, dim_hidden, name='init_hidden_W')
         self.init_hidden_b = self.init_bias(dim_hidden, name='init_hidden_b')
 
         self.init_memory_W = self.init_weight(dim_ctx, dim_hidden, name='init_memory_W')
         self.init_memory_b = self.init_bias(dim_hidden, name='init_memory_b')
 
-        self.lstm_W = self.init_weight(dim_embed, dim_hidden*4, name='lstm_W')
+        self.lstm_W = self.init_weight(n_words, dim_hidden*4, name='lstm_W')
         self.lstm_U = self.init_weight(dim_hidden, dim_hidden*4, name='lstm_U')
         self.lstm_b = self.init_bias(dim_hidden*4, name='lstm_b')
 
@@ -68,16 +64,8 @@ class Caption_Generator():
         self.att_W = self.init_weight(dim_ctx, 1, name='att_W')
         self.att_b = self.init_bias(1, name='att_b')
 
-        self.decode_lstm_W = self.init_weight(dim_hidden, dim_embed, name='decode_lstm_W')
-        self.decode_lstm_b = self.init_bias(dim_embed, name='decode_lstm_b')
-
-        self.decode_word_W = self.init_weight(dim_embed, n_words, name='decode_word_W')
-
-        if bias_init_vector is not None:
-            self.decode_word_b = tf.Variable(bias_init_vector.astype(np.float32), name='decode_word_b')
-        else:
-            self.decode_word_b = self.init_bias(n_words, name='decode_word_b')
-
+        self.decode_lstm_W = self.init_weight(dim_hidden, n_words, name='decode_lstm_W')
+        self.decode_lstm_b = self.init_bias(n_words, name='decode_lstm_b')
 
     def get_initial_lstm(self, mean_context):
         initial_hidden = tf.nn.tanh(tf.matmul(mean_context, self.init_hidden_W) + self.init_hidden_b)
@@ -115,21 +103,25 @@ class Caption_Generator():
 
         loss = 0.0
 
-        for ind in range(self.n_lstm_steps):
-
-            if ind == 0:
-                word_emb = tf.zeros([self.batch_size, self.dim_embed])
-            else:
-                tf.get_variable_scope().reuse_variables()
-                with tf.device("/cpu:0"):
-                    word_emb = tf.nn.embedding_lookup(self.Wemb, sentence[:,ind-1])
-
-            x_t = tf.matmul(word_emb, self.lstm_W) + self.lstm_b # (batch_size, hidden*4)
-
-            labels = tf.expand_dims(sentence[:,ind], 1)
+        def labels_to_onehot(batch):
+            """ Transform a batch of labels (batch_size x 1) into 
+                one hot labels (batch_size x n_words) """
+            labels = tf.expand_dims(batch, 1)
             indices = tf.expand_dims(tf.range(0, self.batch_size, 1), 1)
             concated = tf.concat(1, [indices, labels])
             onehot_labels = tf.sparse_to_dense( concated, tf.pack([self.batch_size, self.n_words]), 1.0, 0.0)
+            return onehot_labels
+
+        for ind in range(self.n_lstm_steps):
+
+            if ind == 0:
+                word = tf.zeros([self.batch_size, self.n_words])
+            else:
+                word = labels_to_onehot(sentence[:, ind-1])
+
+            x_t = tf.matmul(word, self.lstm_W) + self.lstm_b # (batch_size, hidden*4)
+
+            onehot_labels = labels_to_onehot(sentence[:, ind])
 
             context_encode = context_encode + \
                  tf.expand_dims(tf.matmul(h, self.hidden_att_W), 1) + \
@@ -160,8 +152,8 @@ class Caption_Generator():
             logits = tf.nn.relu(logits)
             logits = tf.nn.dropout(logits, self.dropout)
 
-            logit_words = tf.matmul(logits, self.decode_word_W) + self.decode_word_b
-            cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logit_words, onehot_labels)
+            # logit_words = tf.matmul(logits, self.decode_word_W) + self.decode_word_b
+            cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits, onehot_labels)
             cross_entropy = cross_entropy * mask[:,ind]
 
             current_loss = tf.reduce_sum(cross_entropy)
@@ -183,9 +175,9 @@ class Caption_Generator():
         generated_words = []
         logit_list = []
         alpha_list = []
-        word_emb = tf.zeros([1, self.dim_embed])
+        word = tf.zeros([1, self.n_words])
         for ind in range(maxlen):
-            x_t = tf.matmul(word_emb, self.lstm_W) + self.lstm_b
+            x_t = tf.matmul(word, self.lstm_W) + self.lstm_b
             context_encode = context_encode + tf.matmul(h, self.hidden_att_W) + self.pre_att_b
             context_encode = tf.nn.tanh(context_encode)
 
@@ -214,15 +206,10 @@ class Caption_Generator():
             logits = tf.matmul(h, self.decode_lstm_W) + self.decode_lstm_b
             logits = tf.nn.relu(logits)
 
-            logit_words = tf.matmul(logits, self.decode_word_W) + self.decode_word_b
-
-            max_prob_word = tf.argmax(logit_words, 1)
-
-            with tf.device("/cpu:0"):
-                word_emb = tf.nn.embedding_lookup(self.Wemb, max_prob_word)
+            max_prob_word = tf.argmax(logits, 1)
 
             generated_words.append(max_prob_word)
-            logit_list.append(logit_words)
+            logit_list.append(logits)
 
         return images, generated_words, logit_list, alpha_list
 
@@ -287,13 +274,11 @@ def train(pretrained_model_path=pretrained_model_path): # 전에 학습하던게
 
     caption_generator = Caption_Generator(
             n_words=n_words,
-            dim_embed=dim_embed,
             dim_ctx=dim_ctx,
             dim_hidden=dim_hidden,
             n_lstm_steps=maxlen+1, # w1~wN까지 예측한 뒤 마지막에 '.'예측해야하니까 +1
             batch_size=batch_size,
-            img_shape=img_shape,
-            bias_init_vector=bias_init_vector)
+            img_shape=img_shape)
 
     loss, context, sentence, mask = caption_generator.build_model()
     saver = tf.train.Saver(max_to_keep=50)
@@ -349,7 +334,6 @@ def test(test_feat='./guitar_player.npy', model_path='./model/model-6', maxlen=2
 
     caption_generator = Caption_Generator(
             n_words=n_words,
-            dim_embed=dim_embed,
             dim_ctx=dim_ctx,
             dim_hidden=dim_hidden,
             n_lstm_steps=maxlen,
