@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import skimage
 import skimage.io
+from collections import defaultdict
 
 import tqdm
 import tensorflow as tf
@@ -83,6 +84,8 @@ def train():
     mnist_train_labels = np.reshape(mnist_data.train.labels, (num_train, 10))
     mnist_train_labels = np.nonzero(mnist_train_labels)[1] # one hot to integer
     mnist_train_labels = np.reshape(mnist_train_labels, (num_train/CONCAT_LENGTH, CONCAT_LENGTH))
+
+    print mnist_train_images[0, :, :]
 
     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_train_images, num_train/CONCAT_LENGTH, axis=0)])
 
@@ -195,8 +198,8 @@ def test(model_name="mnist-10", test_limit=1000):
     saver.restore(sess, os.path.join(model_path, model_name))
 
     num_test = min(test_limit, stacked.shape[0])
-    correct = 0
-    total = 0
+    correct = defaultdict(int)
+    total = defaultdict(int)
 
     idx_list = np.arange(stacked.shape[0])
     np.random.shuffle(idx_list)
@@ -205,16 +208,16 @@ def test(model_name="mnist-10", test_limit=1000):
     for i in tqdm.tqdm(idx_list):
         generated = sess.run(generated_words, feed_dict = { images: np.expand_dims(stacked[i, :, :], axis=0) })
         for j in range(len(generated)):
-            # print generated[j][0], mnist_test_labels[i, j]
-            total += 1
-            correct += 1 if generated[j][0] == mnist_test_labels[i, j] else 0
+            total[j] += 1
+            correct[j] += 1 if generated[j][0] == mnist_test_labels[i, j] else 0
 
-    # print correct
-    print "Accuracy: {} ({}/{})".format(float(correct)/float(total), correct, total) 
+    for j in range(CONCAT_LENGTH):
+        print "Precision-{}: {} ({}/{})".format(j, 
+            float(correct[j])/float(total[j]), correct[j], total[j]) 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        sample(sys.argv[1])
-        # test(sys.argv[1])
+        # sample(sys.argv[1])
+        test(sys.argv[1])
     else:
         train()

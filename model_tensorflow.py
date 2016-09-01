@@ -31,47 +31,8 @@ class Caption_Generator():
       return tf.nn.max_pool(x, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding='SAME')
 
     def _init_conv_net(self):
-        # starting image size: 128 x 1024
-        # after 5 max pools: 4 x 32 = 128 total pixels
-        # with a filter of depth 512, the context shape is 128 x 512
-
-        # copy vgg16 architecture 
-
-        with tf.variable_scope("conv1"): 
-            self.conv1_W_1 = self.init_custom_weight([3, 3, 1, 64], name="W_1")
-            self.conv1_b_1 = self.init_bias(64, name="b_1")
-            self.conv1_W_2 = self.init_custom_weight([3, 3, 64, 64], name="W_2")
-            self.conv1_b_2 = self.init_bias(64, name="b_2")
-
-        with tf.variable_scope("conv2"): 
-            self.conv2_W_1 = self.init_custom_weight([3, 3, 64, 128], name="W_1")
-            self.conv2_b_1 = self.init_bias(128, name="b_1")
-            self.conv2_W_2 = self.init_custom_weight([3, 3, 128, 128], name="W_2")
-            self.conv2_b_2 = self.init_bias(128, name="b_2")
-
-        with tf.variable_scope("conv3"): 
-            self.conv3_W_1 = self.init_custom_weight([3, 3, 128, 256], name="W_1")
-            self.conv3_b_1 = self.init_bias(256, name="b_1")
-            self.conv3_W_2 = self.init_custom_weight([3, 3, 256, 256], name="W_2")
-            self.conv3_b_2 = self.init_bias(256, name="b_2")
-            self.conv3_W_3 = self.init_custom_weight([3, 3, 256, 256], name="W_3")
-            self.conv3_b_3 = self.init_bias(256, name="b_3")
-         
-        with tf.variable_scope("conv4"): 
-            self.conv4_W_1 = self.init_custom_weight([3, 3, 256, 512], name="W_1")
-            self.conv4_b_1 = self.init_bias(512, name="b_1")
-            self.conv4_W_2 = self.init_custom_weight([3, 3, 512, 512], name="W_2")
-            self.conv4_b_2 = self.init_bias(512, name="b_2")
-            self.conv4_W_3 = self.init_custom_weight([3, 3, 512, 512], name="W_3")
-            self.conv4_b_3 = self.init_bias(512, name="b_3")
-
-        with tf.variable_scope("conv5"): 
-            self.conv5_W_1 = self.init_custom_weight([3, 3, 512, 512], name="W_1")
-            self.conv5_b_1 = self.init_bias(512, name="b_1")
-            self.conv5_W_2 = self.init_custom_weight([3, 3, 512, 512], name="W_2")
-            self.conv5_b_2 = self.init_bias(512, name="b_2")
-            self.conv5_W_3 = self.init_custom_weight([3, 3, 512, 512], name="W_3")
-            self.conv5_b_3 = self.init_bias(512, name="b_3")
+        """ Abstract function """ 
+        pass
 
     def __init__(self, n_words, dim_embed, dim_ctx, dim_hidden, n_lstm_steps, batch_size=200, img_shape=[128,1024], bias_init_vector=None, dropout=0.5):
         self.n_words = n_words
@@ -124,7 +85,6 @@ class Caption_Generator():
 
         return initial_hidden, initial_memory
 
-    # TODO(yoavz): do we need to add scopes?
     def max_pool(self, layer):
         return tf.nn.max_pool(layer, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
@@ -135,57 +95,14 @@ class Caption_Generator():
         return relu
 
     def build_conv_net(self, images):
-
-        # reshape images into 4 rank for convolution operation: [ batch, h, w, 1]
-        images_shaped = tf.expand_dims(images, -1)
-
-        # 128 x 1024
-        conv1_1 = self.conv_layer(images_shaped, self.conv1_W_1, self.conv1_b_1)
-        conv1_2 = self.conv_layer(conv1_1, self.conv1_W_2, self.conv1_b_2)
-        pool1 = self.max_pool(conv1_2)
-
-        # 64 x 512
-        assert pool1.get_shape().as_list()[1:] == [64, 512, 64]
-
-        conv2_1 = self.conv_layer(pool1, self.conv2_W_1, self.conv2_b_1)
-        conv2_2 = self.conv_layer(conv2_1, self.conv2_W_2, self.conv2_b_2)
-        pool2 = self.max_pool(conv2_2)
-
-        # 32 x 256
-        assert pool2.get_shape().as_list()[1:] == [32, 256, 128]
-
-        conv3_1 = self.conv_layer(pool2, self.conv3_W_1, self.conv3_b_1)
-        conv3_2 = self.conv_layer(conv3_1, self.conv3_W_2, self.conv3_b_2)
-        conv3_3 = self.conv_layer(conv3_2, self.conv3_W_3, self.conv3_b_3)
-        pool3 = self.max_pool(conv3_3)
-
-        # 16 x 128
-        assert pool3.get_shape().as_list()[1:] == [16, 128, 256]
-
-        conv4_1 = self.conv_layer(pool3, self.conv4_W_1, self.conv4_b_1)
-        conv4_2 = self.conv_layer(conv4_1, self.conv4_W_2, self.conv4_b_2)
-        conv4_3 = self.conv_layer(conv4_2, self.conv4_W_3, self.conv4_b_3)
-        pool4 = self.max_pool(conv4_3)
-
-        # 8 x 64
-        assert pool4.get_shape().as_list()[1:] == [8, 64, 512]
-
-        conv5_1 = self.conv_layer(pool4, self.conv5_W_1, self.conv5_b_1)
-        conv5_2 = self.conv_layer(conv5_1, self.conv5_W_2, self.conv5_b_2)
-        conv5_3 = self.conv_layer(conv5_2, self.conv5_W_3, self.conv5_b_3)
-        pool5 = self.max_pool(conv5_3)
-
-        # 4 x 32 (x 512 filters)
-        assert pool5.get_shape().as_list()[1:] == [4, 32, 512]
-
-        return tf.reshape(pool5, [-1, 128, 512])
+        """ Abstract function """ 
+        pass
 
     def build_model(self):
         images = tf.placeholder("float32", [self.batch_size, self.img_shape[0], self.img_shape[1]], name="images")
         sentence = tf.placeholder("int32", [self.batch_size, self.n_lstm_steps], name="sentences")
         mask = tf.placeholder("float32", [self.batch_size, self.n_lstm_steps], name="mask")
 
-        # (yoavz): add conv layers to get the image contexts
         context = self.build_conv_net(images)
         ctx_shape = (context.get_shape().as_list()[1], context.get_shape().as_list()[2])
 
@@ -241,7 +158,7 @@ class Caption_Generator():
 
             logits = tf.matmul(h, self.decode_lstm_W) + self.decode_lstm_b
             logits = tf.nn.relu(logits)
-            logits = tf.nn.dropout(logits, dropout)
+            logits = tf.nn.dropout(logits, self.dropout)
 
             logit_words = tf.matmul(logits, self.decode_word_W) + self.decode_word_b
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logit_words, onehot_labels)
@@ -451,23 +368,3 @@ def test(test_feat='./guitar_player.npy', model_path='./model/model-6', maxlen=2
     generated_words = generated_words[:punctuation]
     alpha_list_val = alpha_list_val[:punctuation]
     return generated_words, alpha_list_val
-
-#    generated_sentence = ' '.join(generated_words)
-#    ipdb.set_trace()
-
-if __name__ == "__main__":
-
-    sess = tf.InteractiveSession()
-
-    caption_generator = Caption_Generator(
-            n_words=1000,
-            dim_embed=dim_embed,
-            dim_ctx=dim_ctx,
-            dim_hidden=dim_hidden,
-            n_lstm_steps=1000,
-            batch_size=batch_size,
-            img_shape=img_shape)
-
-    loss, context, sentence, mask = caption_generator.build_model()
-    saver = tf.train.Saver(max_to_keep=50)
-
