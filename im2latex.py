@@ -1,6 +1,6 @@
-import os
-import sys
+import os, sys
 import math
+import cPickle
 import numpy as np
 import skimage
 import skimage.io
@@ -11,6 +11,22 @@ import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
 from model_tensorflow import Caption_Generator
+
+##### Data Location ######
+formula_images_path = 'im2latex-dataset/formula_images'
+metadata_path = 'im2latex-dataset/im2latex.lst'
+formulas_path = 'im2latex-dataset/im2latex_formulas.lst'
+
+##### Model Parameters ######
+n_epochs=100
+save_every=1 
+batch_size=100
+dim_ctx=512
+dim_hidden=256
+img_shape=[128, 1024]
+max_lstm_steps=81 # 80 length + 1 for ending token
+model_path = 'models/im2latex'
+learning_rate=0.001
 
 class IM2LATEXCaptionGenerator(Caption_Generator):
 
@@ -109,30 +125,13 @@ class IM2LATEXCaptionGenerator(Caption_Generator):
 
         return tf.reshape(pool5, [-1, 128, 512])
 
-##### Parameters ######
-n_epochs=1000
-save_every=5 # save every 5 epochs
-batch_size=10 # TODO(yoavz): change once testing is done
-dim_ctx=512
-dim_hidden=256
-img_shape=[128, 1024]
-max_lstm_steps=81 # 80 length + 1
-model_path = 'models'
-learning_rate=0.001
-#############################
-
-formula_images_path = 'formula_images'
-metadata_path = 'im2latex.lst'
-formulas_path = 'im2latex_formulas.lst'
 
 def load_images():
-
-    length_to_idxs = defaultdict(list)
 
     # count the total amount of formulas
     with open(formulas_path, 'r') as f:
         for i, line in enumerate(f):
-            length_to_idxs[len(line)] += [i]
+            pass
         num_formulas = i + 1
 
     # create a placeholder images array
@@ -153,7 +152,7 @@ def load_images():
             img = img / 255.0
             images[int(idx), :, :] = img
 
-    return images, length_to_idxs
+    return images
 
 def load_formulas():
 
@@ -168,19 +167,17 @@ def load_formulas():
 
     # first index is reserved for "end" character
     char_to_idx = { '\0': 0 }
-    idx_to_char = { 0: '\0' }
     idx = 1
     for c in alphabet:
         char_to_idx[c] = idx
-        idx_to_char[idx] = c
         idx += 1
 
-    return formulas, char_to_idx, idx_to_char
+    return formulas, char_to_idx
 
 def train():
 
-    images_data, length_to_idxs = load_images()
-    formulas, char_to_idx, idx_to_char = load_formulas()
+    images_data = load_images()
+    formulas, char_to_idx = load_formulas()
     n_words = len(char_to_idx)
 
     sess = tf.InteractiveSession()
@@ -203,6 +200,9 @@ def train():
     # WARNING: ignores the final remainder of batches for simplicity
     batches_per_epoch = images_data.shape[0] / batch_size
     print "{} total train images".format(images_data.shape[0])
+
+    with open(os.path.join(model_path, 'dictionary.pickle'), 'w') as f:
+        cPickle.dump(char_to_idx, f)
     
     for epoch in range(n_epochs):
 
@@ -240,32 +240,37 @@ def train():
         if epoch % save_every == 0:
             saver.save(sess, os.path.join(model_path, 'im2latex'), global_step=epoch/save_every)
 
-# def sample(model_name="mnist-10"):
-#
-#     stacked = np.stack([horizontally_stack(m, 2) for m in np.split(mnist_test_images, num_test/CONCAT_LENGTH, axis=0)])
-#
-#     idx = np.random.randint(0, high=stacked.shape[0]-1)
-#     skimage.io.imsave("test_image.png", stacked[idx, :, :])
-#     print "Test image saved to test_image.png"
-#
-#     sess = tf.InteractiveSession()
-#
-#     caption_generator = IM2LATEXCaptionGenerator(
-#         n_words=10, # 10 possible words
-#         dim_ctx=dim_ctx,
-#         dim_hidden=dim_hidden,
-#         n_lstm_steps=CONCAT_LENGTH,
-#         batch_size=batch_size,
-#         img_shape=img_shape,
-#         dropout=1.0)
-#
-#     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=CONCAT_LENGTH)
-#     saver = tf.train.Saver()
-#     saver.restore(sess, os.path.join(model_path, model_name))
-#
-#     generated_words = sess.run(generated_words, feed_dict = { images: np.expand_dims(stacked[idx, :, :], axis=0) })
-#     print generated_words
-#
+def sample(model_name="mnist-10"):
+
+    images_data = load_images()
+    idx = np.random.randint(0, high=images_data.shape[0]-1)
+
+    with open(os.path.join(model_path, 'dictionary.pickle'), 'r') as f:
+        char_to_idx = cPickle.load(f)
+    idx_to_char = { v: k for k, v in char_to_idx.iteritems() }
+
+    n_words = len(char_to_idx)
+
+    sess = tf.InteractiveSession()
+
+    caption_generator = IM2LATEXCaptionGenerator(
+        n_words=char_to_idx, 
+        dim_ctx=dim_ctx,
+        dim_hidden=dim_hidden,
+        n_lstm_steps=max_lstm_steps,
+        batch_size=batch_size,
+        img_shape=img_shape,
+        dropout=1.0)
+
+    images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=max_lstm_steps)
+    saver = tf.train.Saver()
+    saver.restore(sess, os.path.join(model_path, model_name))
+
+    generated_words = sess.run(generated_words, feed_dict = { images: np.expand_dims(images_data[idx, :, :], axis=0) })
+    translated_words = [ idx_to_char[i] for i in generated_words ]
+
+    print translated_words
+
 # def test(model_name="mnist-10", test_limit=1000):
 #     mnist_data = input_data.read_data_sets("data/MNIST", one_hot=True)
 #     num_test = mnist_data.test.images.shape[0]
