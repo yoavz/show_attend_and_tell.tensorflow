@@ -13,9 +13,15 @@ from tensorflow.examples.tutorials.mnist import input_data
 from model_tensorflow import Caption_Generator
 
 ##### Data Location ######
+# train_formula_images_path = 'im2latex-dataset/train_formula_images'
+# train_metadata_path = 'im2latex-dataset/train_im2latex.lst'
+# train_formulas_path = 'im2latex-dataset/train_im2latex_formulas.lst'
 train_formula_images_path = 'im2latex-dataset/formula_images'
 train_metadata_path = 'im2latex-dataset/im2latex.lst'
 train_formulas_path = 'im2latex-dataset/im2latex_formulas.lst'
+test_formula_images_path = 'im2latex-dataset/test_formula_images'
+test_metadata_path = 'im2latex-dataset/test_im2latex.lst'
+test_formulas_path = 'im2latex-dataset/test_im2latex_formulas.lst'
 
 ##### Model Parameters ######
 n_epochs=100
@@ -23,7 +29,7 @@ save_every=1
 batch_size=100
 dim_ctx=512
 dim_hidden=256
-img_shape=[128, 1024]
+img_shape=[64, 512]
 max_lstm_steps=81 # 80 length + 1 for ending token
 model_path = 'models/im2latex'
 learning_rate=0.001
@@ -33,7 +39,7 @@ class IM2LATEXCaptionGenerator(Caption_Generator):
     def _init_conv_net(self):
         """
         Defines the parameters of convolution to go from
-        image -> context vectors. Image size starts at 128 x 1024
+        image -> context vectors. Image size starts at 64 x 512
         Context vectors are 128 x 512.
 
         Copies VGG16 architecture.
@@ -67,13 +73,13 @@ class IM2LATEXCaptionGenerator(Caption_Generator):
             self.conv4_W_3 = self.init_custom_weight([3, 3, 512, 512], name="W_3")
             self.conv4_b_3 = self.init_bias(512, name="b_3")
 
-        with tf.variable_scope("conv5"): 
-            self.conv5_W_1 = self.init_custom_weight([3, 3, 512, 512], name="W_1")
-            self.conv5_b_1 = self.init_bias(512, name="b_1")
-            self.conv5_W_2 = self.init_custom_weight([3, 3, 512, 512], name="W_2")
-            self.conv5_b_2 = self.init_bias(512, name="b_2")
-            self.conv5_W_3 = self.init_custom_weight([3, 3, 512, 512], name="W_3")
-            self.conv5_b_3 = self.init_bias(512, name="b_3")
+        # with tf.variable_scope("conv5"): 
+        #     self.conv5_W_1 = self.init_custom_weight([3, 3, 512, 512], name="W_1")
+        #     self.conv5_b_1 = self.init_bias(512, name="b_1")
+        #     self.conv5_W_2 = self.init_custom_weight([3, 3, 512, 512], name="W_2")
+        #     self.conv5_b_2 = self.init_bias(512, name="b_2")
+        #     self.conv5_W_3 = self.init_custom_weight([3, 3, 512, 512], name="W_3")
+        #     self.conv5_b_3 = self.init_bias(512, name="b_3")
 
 
     def build_conv_net(self, images):
@@ -90,14 +96,18 @@ class IM2LATEXCaptionGenerator(Caption_Generator):
         pool1 = self.max_pool(conv1_2)
 
         # 64 x 512
-        assert pool1.get_shape().as_list()[1:] == [64, 512, 64]
+        # assert pool1.get_shape().as_list()[1:] == [64, 512, 64]
+        # 32 x 256
+        assert pool1.get_shape().as_list()[1:] == [32, 256, 64]
 
         conv2_1 = self.conv_layer(pool1, self.conv2_W_1, self.conv2_b_1)
         conv2_2 = self.conv_layer(conv2_1, self.conv2_W_2, self.conv2_b_2)
         pool2 = self.max_pool(conv2_2)
 
         # 32 x 256
-        assert pool2.get_shape().as_list()[1:] == [32, 256, 128]
+        # assert pool2.get_shape().as_list()[1:] == [32, 256, 128]
+        # 16 x 128
+        assert pool2.get_shape().as_list()[1:] == [16, 128, 128]
 
         conv3_1 = self.conv_layer(pool2, self.conv3_W_1, self.conv3_b_1)
         conv3_2 = self.conv_layer(conv3_1, self.conv3_W_2, self.conv3_b_2)
@@ -105,7 +115,7 @@ class IM2LATEXCaptionGenerator(Caption_Generator):
         pool3 = self.max_pool(conv3_3)
 
         # 16 x 128
-        assert pool3.get_shape().as_list()[1:] == [16, 128, 256]
+        assert pool3.get_shape().as_list()[1:] == [8, 64, 256]
 
         conv4_1 = self.conv_layer(pool3, self.conv4_W_1, self.conv4_b_1)
         conv4_2 = self.conv_layer(conv4_1, self.conv4_W_2, self.conv4_b_2)
@@ -113,17 +123,17 @@ class IM2LATEXCaptionGenerator(Caption_Generator):
         pool4 = self.max_pool(conv4_3)
 
         # 8 x 64
-        assert pool4.get_shape().as_list()[1:] == [8, 64, 512]
+        assert pool4.get_shape().as_list()[1:] == [4, 32, 512]
 
-        conv5_1 = self.conv_layer(pool4, self.conv5_W_1, self.conv5_b_1)
-        conv5_2 = self.conv_layer(conv5_1, self.conv5_W_2, self.conv5_b_2)
-        conv5_3 = self.conv_layer(conv5_2, self.conv5_W_3, self.conv5_b_3)
-        pool5 = self.max_pool(conv5_3)
+        # conv5_1 = self.conv_layer(pool4, self.conv5_W_1, self.conv5_b_1)
+        # conv5_2 = self.conv_layer(conv5_1, self.conv5_W_2, self.conv5_b_2)
+        # conv5_3 = self.conv_layer(conv5_2, self.conv5_W_3, self.conv5_b_3)
+        # pool5 = self.max_pool(conv5_3)
+        #
+        # # 4 x 32 (x 512 filters)
+        # assert pool5.get_shape().as_list()[1:] == [4, 32, 512]
 
-        # 4 x 32 (x 512 filters)
-        assert pool5.get_shape().as_list()[1:] == [4, 32, 512]
-
-        return tf.reshape(pool5, [-1, 128, 512])
+        return tf.reshape(pool4, [-1, 128, 512])
 
 def load_data(formula_images_path, formulas_path, metadata_path):
 
@@ -170,6 +180,10 @@ def load_images(image_names, formula_images_path):
             print e
             return None
 
+        if img.shape[0] != img_shape[0] or img.shape[1] != img_shape[1]:
+            print "Found inconsistent size: {}".format(img.shape)
+            return None
+
         img = img / 255.0
         image_data[i, :, :] = img
 
@@ -192,7 +206,7 @@ def train():
         n_lstm_steps=max_lstm_steps, 
         batch_size=batch_size,
         img_shape=img_shape,
-        dropout=0.5)
+        dropout=0.8)
 
     loss, images, sentence, mask = caption_generator.build_model()
     saver = tf.train.Saver(max_to_keep=100)
@@ -200,6 +214,8 @@ def train():
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
     tf.initialize_all_variables().run()
 
+    if not os.path.isdir(model_path):
+        os.makedirs(model_path)
     with open(os.path.join(model_path, 'dictionary.pickle'), 'w') as f:
         cPickle.dump(char_to_idx, f)
 
@@ -220,7 +236,7 @@ def train():
             current_image_names = [data[i][1] for i in batch_idxs]
             current_images = load_images(current_image_names, train_formula_images_path)
             if current_images is None:
-                print "Problem loading image in batch {}, skipping".format()
+                print "Problem loading image in batch {}, skipping".format(batch_num)
                 continue
             current_formulas = [data[i][0] for i in batch_idxs]
 
@@ -235,13 +251,12 @@ def train():
                 # set mask of the example to ones
                 current_mask[i, :len(f)+1] = np.ones(len(f)+1, dtype=np.int32)
             
-            # print current_images.shape
-            # print current_labels.shape
-            # print current_mask.shape
-            #
-            # print current_labels[0, :]
-            # print current_mask[0, :]
+            
+            # uncomment this to test that the formulas and images line up
             # loss_value = 0
+            # rand = np.random.randint(0, batch_size)
+            # print "{}: {}".format(batch_num, current_formulas[rand])
+            # skimage.io.imsave("test/{}.png".format(batch_num), current_images[rand, :, :])
 
             _, loss_value = sess.run([train_op, loss], feed_dict={
                 images: current_images,
@@ -254,6 +269,39 @@ def train():
         if epoch % save_every == 0:
             saver.save(sess, os.path.join(model_path, 'im2latex'), global_step=epoch/save_every)
 
+# def test():
+#
+#     data = load_data(test_formula_images_path,
+#                      test_formulas_path,
+#                      test_metadata_path)
+#
+#     with open(os.path.join(model_path, 'dictionary.pickle'), 'r') as f:
+#         char_to_idx = cPickle.load(f)
+#     idx_to_char = { v: k for k, v in char_to_idx.iteritems() }
+#
+#     n_words = len(char_to_idx)
+#
+#     sess = tf.InteractiveSession()
+#
+#     caption_generator = IM2LATEXCaptionGenerator(
+#         n_words=char_to_idx, 
+#         dim_ctx=dim_ctx,
+#         dim_hidden=dim_hidden,
+#         n_lstm_steps=max_lstm_steps,
+#         batch_size=batch_size,
+#         img_shape=img_shape,
+#         dropout=1.0)
+#
+#     images, generated_words, logit_list, alpha_list = caption_generator.build_generator(maxlen=max_lstm_steps)
+#     saver = tf.train.Saver()
+#     saver.restore(sess, os.path.join(model_path, model_name))
+#
+#     generated_words = sess.run(generated_words, feed_dict = { images: np.expand_dims(images_data[idx, :, :], axis=0) })
+#     translated_words = [ idx_to_char[i] for i in generated_words ]
+#
+#     print translated_words
+#
+#
 # def sample(model_name="mnist-10"):
 #
 #     images_data = load_images()
